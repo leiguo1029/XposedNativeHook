@@ -1,5 +1,4 @@
 #include <jni.h>
-#include <android/log.h>
 #include <dlfcn.h>
 #include <string.h>
 #include <cstdio>
@@ -7,11 +6,11 @@
 #include "include/hook.h"
 #include "include/dobby.h"
 
-#define TAG "nativehook123_nativelog"
+
 #include "syscall.h"
 #include "sys/socket.h"
-#define logd(fmt,args...) __android_log_print(ANDROID_LOG_DEBUG, TAG, fmt, ##args)
 
+#define TAG "nativehook123_nativelog"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -36,59 +35,51 @@ int (*ori_func)();
 const char* (*ori_decstr)(void* arg);
 const char* fake_decstr(void* arg) {
     const char* res = ori_decstr(arg);
-    logd("decStr: %s", res);
+    logd("nativehook123_decStr", "%s", res);
+    if(strcmp(res, "api1.shuzilm.cn") == 0) {
+        _Unwind_Backtrace(unwind_backtrace_callback, NULL);
+    }
     return res;
 }
 
-void* (*ori_sendfunc)(void* arg1, void* arg2, void* arg3, void* arg4);
-void* fake_sendfunc(void* arg1, void* arg2, void* arg3, void* arg4){
-    logd("sendfunc called....");
-    ori_sendfunc(arg1, arg2, arg3, arg4);
-}
-
-void (*ori_init)();
-void fake_init() {
-    ctx* du_handle = (ctx*)fake_dlopen("libdu.so", RTLD_LAZY);
-    void* decstr = pointer_add(du_handle->load_addr, 0x176e5);
-    uint32_t checksum1 = *(uint32_t*)decstr;
-    logd("decstr checksum1: %d", checksum1);
-    ori_init();
-    uint32_t checksum2 = *(uint32_t*)decstr;
-    logd("decstr checksum2: %d", checksum2);
-    DobbyHook(decstr, (void*)fake_decstr, (void**)&ori_decstr);
+jstring (*ori_query)(JNIEnv* env, jclass cls, jobject cxt, jstring str1, jstring str2);
+jstring fake_query(JNIEnv* env, jclass cls, jobject cxt, jstring str1, jstring str2) {
+    hook_jni_function(env);
+    jstring res = ori_query(env, cls, cxt, str1, str2);
+    unhook_jni_function(env);
+    const char* smid = env->GetStringUTFChars(res, 0);
+    logd(TAG, "get smid: %s", smid);
+    env->ReleaseStringUTFChars(res, smid);
+    return res;
 }
 
 void* (*ori_dlopen_ext)(char*, int, void*);
 void* fake_dlopen_ext(char* libPath, int mode, void* extInfo){
- //   logd("loadlibrary by android_dlopen_ext: %s", libPath);
+    logd(TAG, "loadlibrary by android_dlopen_ext: %s", libPath);
     void* handle =  ori_dlopen_ext(libPath, mode, extInfo);
     if(strcmp(package_name, "com.festearn.likeread") == 0) {
         if(strstr(libPath, "libflutter.so")) {
             ctx *so_info = (ctx *)fake_dlopen("libflutter.so", RTLD_LAZY);
-            logd("libflutter.so load addr: %p, bias: %p", so_info->load_addr, so_info->bias);
+            logd(TAG, "libflutter.so load addr: %p, bias: %p", so_info->load_addr, so_info->bias);
             void *hook_func = pointer_add(so_info->load_addr, 0x5873d4);
-            logd("libflutter.so hook func: %p", hook_func);
+            logd(TAG, "libflutter.so hook func: %p", hook_func);
             DobbyHook(hook_func, (void *) my_func, (void **) &ori_func);
         }
     }
     if(strstr(libPath, "libdu.so")) {
-            ctx* du_handle = (ctx*)fake_dlopen("libdu.so", RTLD_LAZY);
-            logd("libdu.so load addr: %p", du_handle->load_addr);
+        ctx* du_handle = (ctx*)fake_dlopen("libdu.so", RTLD_LAZY);
+        logd(TAG, "libdu.so load addr: %p", du_handle->load_addr);
         void* decstr = pointer_add(du_handle->load_addr, 0x176e5);
-        uint32_t checksum = *(uint32_t*)decstr;
-        logd("decstr checksum: %d", checksum);
         DobbyHook(decstr, (void*)fake_decstr, (void**)&ori_decstr);
-
-        void* sendfunc = pointer_add(du_handle->load_addr, 0x1f01d);
-        DobbyHook(sendfunc, (void*)fake_sendfunc, (void**)&ori_sendfunc);
-        }
-
+        void* query = pointer_add(du_handle->load_addr, 0x23f79);
+        DobbyHook(query, (void*)fake_query, (void**)&ori_query);
+    }
     return handle;
 }
 
 void* (*ori_dexfile)(void* thiz, void* dex_file, size_t len, void* arg4, void* arg5, void* arg6);
 void* fake_dexfile(void* thiz, void* dex_file, size_t len, void* arg4, void* arg5, void* arg6) {
-    logd("load dexfile addr=%p, len=%lx", dex_file, len);
+    logd(TAG, "load dexfile addr=%p, len=%lx", dex_file, len);
     return ori_dexfile(thiz, dex_file, len, arg4, arg5, arg6);
 }
 
@@ -98,8 +89,8 @@ int fake_sendto(int fd, const void* const buf, size_t len, int flags, const stru
     for(int i = 0; i < len; ++i) {
         sprintf(bytes + 3*i, "%02x ", ((char*)buf)[i]);
     }
-    logd("sendto: hex --> %s", bytes);
-    logd("sendto: buf --> %s", buf);
+    logd(TAG, "sendto: hex --> %s", bytes);
+    logd(TAG, "sendto: buf --> %s", buf);
     delete bytes;
     return ori_sendto(fd, buf, len, flags, dest_addr, addr_len);
 }
@@ -109,19 +100,18 @@ void* dexfile = NULL;
 JNIEXPORT void Java_com_fear1ess_xposednativehook_HookEntry_doNativeHook(JNIEnv *env, jobject thiz, jstring pkg_name_jstr) {
     jboolean isCopy = 0;
     const char *pkg_name = env->GetStringUTFChars(pkg_name_jstr, &isCopy);
-    logd("hahaha current pkg_name: %s", pkg_name);
+    logd(TAG, "hahaha current pkg_name: %s", pkg_name);
     size_t len = strlen(pkg_name);
     if(len >= 100) {
         len = 99;
     }
     memcpy(package_name, pkg_name, len);
+
     if (strcmp(package_name, "com.taou.maimai") == 0) {
+        /*
         void* art_handle = fake_dlopen("libart.so", RTLD_LAZY);
         dexfile = fake_dlsym(art_handle, "_ZN3art7DexFileC2EPKhjRKNSt3__112basic_stringIcNS3_11char_traitsIcEENS3_9allocatorIcEEEEjPKNS_10OatDexFileE");
-     //   void* dexfile = fake_dlsym(art_handle, "_ZN3art7DexFile10OpenCommonEPKhjRKNSt3__112basic_stringIcNS3_11char_traitsIcEENS3_9allocatorIcEEEEjPKNS_10OatDexFileEbbPS9_PNS0_12VerifyResultE");
-        logd("dexfile offset: 0x%lx", (char*)dexfile - (char*)((ctx*)art_handle)->load_addr);
-        DobbyHook(dexfile, (void*)fake_dexfile, (void**)&ori_dexfile);
-      //  DobbyHook((void*)sendto, (void*)fake_sendto, (void**)&ori_sendto);
+        DobbyHook(dexfile, (void*)fake_dexfile, (void**)&ori_dexfile);*/
     }
     env->ReleaseStringUTFChars(pkg_name_jstr, pkg_name);
 }
@@ -133,7 +123,7 @@ Java_com_fear1ess_xposednativehook_HookEntry_getDexFileNative(JNIEnv *env, jobje
     void* dex_file = (void*) dex_file_ptr;
     void* base = value_at(dex_file, 4);
     size_t len = (size_t)value_at(dex_file, 8);
-    logd("dex base: %p, len: 0x%lx", base, len);
+    logd(TAG, "dex base: %p, len: 0x%lx", base, len);
     if(len == 0xb3d65c) canDump = 1;
     if(canDump && index < 4) {
         const char* path_format = "/sdcard/maimai-dex/%d.dex";
@@ -145,16 +135,54 @@ Java_com_fear1ess_xposednativehook_HookEntry_getDexFileNative(JNIEnv *env, jobje
     }
 }
 
+int (*ori_X509_verify)(void* arg1, void* arg2);
+int fake_X509_verify(void* arg1, void* arg2) {
+    int res = ori_X509_verify(arg1, arg2);
+    logd(TAG, "X509 verify res: %d", res);
+    return res;
+}
+
+_Unwind_Reason_Code unwind_backtrace_callback(struct _Unwind_Context* context, void* arg) {
+    _Unwind_Word pc = _Unwind_GetIP(context);
+    if(pc) {
+        Dl_info info;
+        dladdr((void*)pc, &info);
+        logd("nativehook123_unwind", "unwind --> module: %s, offset: 0x%x(%s + 0x%x)", info.dli_fname, pc - (uintptr_t)info.dli_fbase,
+                info.dli_sname, pc - (uintptr_t)info.dli_saddr);
+    }
+    return _URC_NO_REASON;
+}
+
 JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
-    logd("%s", "hello world haha123");
     void* dl_handle = fake_dlopen("libdl.so", RTLD_LAZY);
     void* dlopen_ext = fake_dlsym(dl_handle,"android_dlopen_ext");
+    void* crypto_handle = fake_dlopen("libcrypto.so", RTLD_LAZY);
+    logd(TAG, "ssl_handle: %p", crypto_handle);
+    void* X509_verify = fake_dlsym(crypto_handle, "X509_verify");
     if(!dlopen_ext) {
-        logd("%s", "dlopen_ext is null!!!");
+        logd(TAG, "%s", "dlopen_ext is null!!!");
         return JNI_VERSION_1_6;
     }
+    logd(TAG, "x509_verify: %p", X509_verify);
     DobbyHook((void*)dlopen_ext,(void*)fake_dlopen_ext,(void**)&ori_dlopen_ext);
+    DobbyHook((void*)X509_verify, (void*)fake_X509_verify, (void**)&ori_X509_verify);
+
+    JNIEnv* env = NULL;
+    vm->GetEnv((void**)&env, JNI_VERSION_1_6);
+    if(env != NULL) {
+        jni_hook_init(env);
+    }
     return JNI_VERSION_1_6;
+}
+
+JNIEXPORT void JNICALL
+Java_com_fear1ess_xposednativehook_HookEntry_startHookJni(JNIEnv *env, jobject thiz) {
+    hook_jni_function(env);
+}
+
+JNIEXPORT void JNICALL
+Java_com_fear1ess_xposednativehook_HookEntry_stopHookJni(JNIEnv *env, jobject thiz) {
+    unhook_jni_function(env);
 }
 
 #ifdef __cplusplus

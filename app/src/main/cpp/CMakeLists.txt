@@ -23,7 +23,7 @@ add_library( # Sets the name of the library.
              SHARED
 
              # Provides a relative path to your source file(s).
-        native-lib.cpp fake_dlfcn.c)
+        native-lib.cpp fake_dlfcn.c jni_function_hook.cpp)
 
 add_library(dobby STATIC IMPORTED)
 set_target_properties(dobby

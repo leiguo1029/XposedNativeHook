@@ -22,10 +22,12 @@
 
 #ifdef __arm__
 #define Elf_Ehdr Elf32_Ehdr
+#define Elf_Phdr Elf32_Phdr
 #define Elf_Shdr Elf32_Shdr
 #define Elf_Sym  Elf32_Sym
 #elif defined(__aarch64__)
 #define Elf_Ehdr Elf64_Ehdr
+#define Elf_Phdr Elf64_Phdr
 #define Elf_Shdr Elf64_Shdr
 #define Elf_Sym  Elf64_Sym
 #else
@@ -90,7 +92,7 @@ void *fake_dlopen(const char *libpath, int flags)
     int int3 = 0;
     char attr[16] = {0};
     char path[256] = {0};
-    if(sscanf(buff, "%lx-%lx%s%lx%d:%d%d%s", &load_addr, &end_addr, attr, &len, &int1, &int2, &int3, path) != 8)
+    if(sscanf(buff, "%lx-%lx%s%lx%x:%x%x%s", &load_addr, &end_addr, attr, &len, &int1, &int2, &int3, path) != 8)
         fatal("failed to read load address for %s", libpath);
 
     log_info("%s loaded in Android at 0x%08lx", libpath, load_addr);
@@ -118,6 +120,17 @@ void *fake_dlopen(const char *libpath, int flags)
     Elf_Shdr *shstrndx = ((Elf_Shdr *) shoff+elf->e_shstrndx);
     char* shstr=((void *) elf) + shstrndx->sh_offset;
 
+    void* phoff = ((void *) elf) + elf->e_phoff;
+
+    for(int j = 0; j < elf->e_phnum; j++, phoff += elf->e_phentsize) {
+        Elf_Phdr* ph = phoff;
+        if(ph->p_type == PT_LOAD) {
+            ctx->bias = ph->p_vaddr;
+            break;
+        }
+    }
+    log_info("ctx->bias: %x", ctx->bias);
+
     for(k = 0; k < elf->e_shnum; k++, shoff += elf->e_shentsize)  {
 
         Elf_Shdr *sh = (Elf_Shdr *) shoff;
@@ -144,7 +157,7 @@ void *fake_dlopen(const char *libpath, int flags)
             if(!ctx->dynstr) fatal("%s: no memory for .dynstr", libpath);
             memcpy(ctx->dynstr, ((void *) elf) + sh->sh_offset, sh->sh_size);
         }else if(strcmp(shname,".text")==0){
-            ctx->bias = (off_t) sh->sh_addr - (off_t) sh->sh_offset;
+          //  ctx->bias = (off_t) sh->sh_addr - (off_t) sh->sh_offset;
         }
 
         /*

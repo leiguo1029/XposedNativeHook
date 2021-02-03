@@ -11,7 +11,9 @@ import android.util.Log;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Type;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
@@ -19,7 +21,7 @@ import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 public class HookEntry implements IXposedHookLoadPackage {
-    private final String TAG = "nativehook123";
+    private final String TAG = "nativehook123_java";
     private final String hookPluginSoName = "haha123";
     private Context cxt;
     private Object app;
@@ -27,6 +29,7 @@ public class HookEntry implements IXposedHookLoadPackage {
     private String processName;
     private ClassLoader cl;
     private volatile boolean startTrace = false;
+    private volatile boolean isAppHooked = false;
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
 
@@ -38,33 +41,21 @@ public class HookEntry implements IXposedHookLoadPackage {
                 Context.class, new XC_MethodHook() {
                     @Override
                     protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                        super.afterHookedMethod(param);
+                        if(isAppHooked) return;
                         cxt = (Context) param.args[0];
                         app = param.thisObject;
                         if(cxt != null && app != null) {
-                            Log.d("nativehook123", "start native hook");
+                            Log.d(TAG, "start native hook");
                             if(!hookAppNativeLib(pkgName)){
-                                Log.d("nativehook123", "native hook failed");
+                                Log.d(TAG, "native hook failed");
                                 return;
                             }
-                            Log.d("nativehook123", "native hook success");
+                            Log.d(TAG, "native hook success");
                             if(processName.equals("com.taou.maimai")){
                                 startHookJava();
-                                /*
-                                new Thread(){
-                                    @Override
-                                    public void run() {
-                                        Debug.startMethodTracingSampling("/sdcard/ccc.trace", 102400, 1000);
-                                        try {
-                                            Thread.sleep(30*1000);
-                                        } catch (InterruptedException e) {
-                                            e.printStackTrace();
-                                        }
-                                        Debug.stopMethodTracing();
-                                    }
-                                }.start();*/
                             }
                         }
+                        isAppHooked = true;
                     }
                 });
     }
@@ -76,8 +67,6 @@ public class HookEntry implements IXposedHookLoadPackage {
         Log.d(TAG, "main activity clsname: " + className);
         try {
             Class<?> cls = ClassLoader.class.getClassLoader().loadClass("java.lang.ClassLoader");
-            if(cls == null) Log.d(TAG, "classloader cls is null");
-            else Log.d(TAG, "classloader cls is not null");
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
         }
@@ -89,29 +78,55 @@ public class HookEntry implements IXposedHookLoadPackage {
                 String clsName = (String) param.args[0];
                 if(clsName.equals(className)) {
                     Log.d(TAG, "load main activity class...");
+                    cl = (ClassLoader) param.thisObject;
                     //mInitialApplication
                     Object app = Class.forName("android.app.ActivityThread").getDeclaredMethod("currentApplication").invoke(null);
                     String appClsName = app.getClass().getName();
-                    Log.d(TAG, "appClsName: " + appClsName);
+                    Log.d(TAG, "applicationClsName: " + appClsName);
+                    Class<?> duhelper = null;
+                    try{
+                        duhelper = cl.loadClass("cn.shuzilm.core.DUHelper");
+                    }catch (Exception e){
+                        Log.d(TAG, "find duhelper: " + e.getMessage());
+                    }
+                    Class<?> duhelper2 = duhelper;
+                    /*
+                    XposedHelpers.findAndHookMethod(duhelper, "query",
+                            Context.class, String.class, String.class, new XC_MethodHook() {
+                                @Override
+                                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                                    startHookJni();
+                                }
+
+                                @Override
+                                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                                    stopHookJni();
+                                    Log.d(TAG, "call shumeng query...");
+                                    int mMeic = XposedHelpers.getStaticIntField(duhelper2, "mMeic");
+                                    int mPopu = XposedHelpers.getStaticIntField(duhelper2, "mPopu");
+                                    int mPort = XposedHelpers.getStaticIntField(duhelper2, "mPort");
+                                    Log.d(TAG, "mMeic: " + mMeic + ", mPopu: " + mPopu + ", mPort: " + mPort);
+                                    Log.d(TAG, "query str1: " + (String)param.args[1]);
+                                    Log.d(TAG, "query str2: " + (String)param.args[2]);
+                                    Log.d(TAG, "query res: " + (String)param.getResult());
+                                }
+                            });*/
                   //  getDexFile(param.thisObject);
                 }
             }
         });
 
-        XposedHelpers.findAndHookMethod("cn.shuzilm.core.DUHelper", cl, "query",
-                Context.class, String.class, String.class, new XC_MethodHook() {
+
+
+        XposedHelpers.findAndHookMethod("com.android.org.conscrypt.ConscryptFileDescriptorSocket$SSLOutputStream", cl, "write",
+                byte[].class, int.class, int.class, new XC_MethodHook() {
                     @Override
                     protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                        Log.d(TAG, "call shumeng query...");
-                                    /*
-                                    Class<?> cls = cl.loadClass("cn.shuzilm.core.DUHelper");
-                                        int mMeic = XposedHelpers.getStaticIntField(cls, "mMeic");
-                                        int mPopu = XposedHelpers.getStaticIntField(cls, "mPopu");
-                                        int mPort = XposedHelpers.getStaticIntField(cls, "mPort");
-                                    Log.d(TAG, "mMeic: " + mMeic + ", mPopu: " + mPopu + ", mPort: " + mPort);*/
-                        Log.d(TAG, "str1: " + (String)param.args[1]);
-                        Log.d(TAG, "str2: " + (String)param.args[2]);
-
+                        byte[] data = (byte[]) param.args[0];
+                        int pos = (int) param.args[1];
+                        int len = (int) param.args[2];
+                        String payload = new String(data, pos, len);
+                        Log.d(TAG, "SSLOutputSteam data: " + payload);
                     }
                 });
     }
@@ -210,4 +225,118 @@ public class HookEntry implements IXposedHookLoadPackage {
     }
 
     public native void doNativeHook(String pkgName);
+    public native void startHookJni();
+    public native void stopHookJni();
+
+    public static String getMethodName(Method m) {
+        return m.getName();
+    }
+
+    public static char getShortyLetter(Class<?> cls) {
+        if(cls.isPrimitive()){
+            switch(cls.getName()){
+                case "boolean": return 'Z';
+                case "byte": return 'B';
+                case "char": return 'C';
+                case "short": return 'S';
+                case "int": return 'I';
+                case "float": return 'F';
+                case "double": return 'D';
+                case "long": return 'J';
+                case "void": return 'V';
+            }
+        }
+        return 'L';
+    }
+
+    public static String getMethodShorty(Method m) {
+        Class<?>[] paramsCls = m.getParameterTypes();
+        Class<?> retCls = m.getReturnType();
+        String shorty = "";
+        shorty += getShortyLetter(retCls);
+        for(Class<?> cls : paramsCls) {
+            shorty += getShortyLetter(cls);
+        }
+        return shorty;
+    }
+
+    public static String getMethodSig(final Method method) {
+        final StringBuffer buf = new StringBuffer();
+        buf.append("(");
+        final Class<?>[] types = method.getParameterTypes();
+        for (int i = 0; i < types.length; ++i) {
+            buf.append(getDesc(types[i]));
+        }
+        buf.append(")");
+        buf.append(getDesc(method.getReturnType()));
+        return buf.toString();
+    }
+    public static String getDesc(Class type) {
+        if (type.isPrimitive()) {
+            return getPrimitiveLetter(type);
+        }
+        if (type.isArray()) {
+            return "[" + getDesc(type.getComponentType());
+        }
+        return "L" + getType(type) + ";";
+    }
+    public static String getType(Class parameterType) {
+        if (parameterType.isArray()) {
+            return "[" + getDesc(parameterType.getComponentType());
+        }
+        if (!parameterType.isPrimitive()) {
+            final String clsName = parameterType.getName();
+            return clsName.replaceAll("\\.", "/");
+        }
+        return getPrimitiveLetter(parameterType);
+    }
+    public static String getPrimitiveLetter(Class<?> type) {
+        if (int.class.equals(type)) {
+            return "I";
+        }
+        if (void.class.equals(type)) {
+            return "V";
+        }
+        if (boolean.class.equals(type)) {
+            return "Z";
+        }
+        if (char.class.equals(type)) {
+            return "C";
+        }
+        if (byte.class.equals(type)) {
+            return "B";
+        }
+        if (short.class.equals(type)) {
+            return "S";
+        }
+        if (float.class.equals(type)) {
+            return "F";
+        }
+        if (long.class.equals(type)) {
+            return "J";
+        }
+        if (double.class.equals(type)) {
+            return "D";
+        }
+        throw new IllegalStateException("Type: " + type.getCanonicalName() + " is not a primitive type");
+    }
+    public static Type getMethodType(final Class<?> clazz, final String methodName) {
+        try {
+            final Method method = clazz.getMethod(methodName, (Class<?>[]) new Class[0]);
+            return method.getGenericReturnType();
+        }
+        catch (Exception ex) {
+            return null;
+        }
+    }
+    public static Type getFieldType(final Class<?> clazz, final String fieldName) {
+        try {
+            final Field field = clazz.getField(fieldName);
+            return field.getGenericType();
+        }
+        catch (Exception ex) {
+            return null;
+        }
+    }
+
 }

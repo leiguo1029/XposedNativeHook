@@ -16,12 +16,17 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public class MainActivity extends Activity {
+    static {
+//        HookEntry h = new HookEntry();
+ //       System.loadLibrary("haha123");
+    }
     public class NativeLibInfo {
         public NativeLibInfo(String str, boolean bo) {
             libPath = str;
@@ -50,32 +55,36 @@ public class MainActivity extends Activity {
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         initHookClasses();
-        ClassLoader cl1 = MainActivity.class.getClassLoader();
-        ClassLoader cl2 = ClassLoader.class.getClassLoader();
         Runtime r = Runtime.getRuntime();
+        ArrayList<NativeLibInfo> libInfoArray = new ArrayList<>();
         try {
-            Process p = r.exec("su -c ls /data/app");
-            InputStream is = p.getInputStream();
-            InputStreamReader isr = new InputStreamReader(is);
-            BufferedReader bufferedReader = new BufferedReader(isr);
-            ArrayList<NativeLibInfo> libInfoArray = new ArrayList<>();
-            byte[] b = new byte[1024];
-            String line;
-            while((line = bufferedReader.readLine()) != null) {
-                if(isHookPackage(line)){
-                    boolean is64 = false;
-                    String libPath = "/data/app/" + line + "/lib/arm";
-                    if(!new File(libPath).exists()) {
-                        libPath = "/data/app/" + line + "/lib/arm64";
+            for(String packageName : hookPackagesName) {
+                Process p = r.exec("su -c find /data/app | grep " + packageName);
+                InputStream is = p.getInputStream();
+                InputStreamReader isr = new InputStreamReader(is);
+                BufferedReader bufferedReader = new BufferedReader(isr);
+                String line;
+                while((line = bufferedReader.readLine()) != null) {
+                    if(isHookPackage(line)){
+                        boolean is64 = false;
+                        String libPath = line + "/lib/arm";
                         if(!new File(libPath).exists()) {
-                            Log.d("nativeohook123", "hook app has no lib path...");
-                            return;
+                            libPath = line + "/lib/arm64";
+                            if(!new File(libPath).exists()) {
+                                Log.d("nativeohook123", "hook app has no lib path...");
+                                return;
+                            }
+                            is64 = true;
                         }
-                        is64 = true;
+                        libInfoArray.add(new NativeLibInfo(libPath, is64));
+                        bufferedReader.close();
+                        isr.close();
+                        is.close();
+                        break;
                     }
-                    libInfoArray.add(new NativeLibInfo(libPath, is64));
                 }
             }
+
             Log.d("nativehook123", "onCreate: ");
             String unzipSoPath = getFilesDir().getCanonicalPath() + "/libhaha123-arm.so";
             String unzipSo64Path = getFilesDir().getCanonicalPath() + "/libhaha123-arm64.so";
@@ -132,5 +141,26 @@ public class MainActivity extends Activity {
             e.printStackTrace();
         }
         return null;
+    }
+
+
+    public static String xxx() {
+        Log.d("nativehook123", "xxxxxxxxx123456");
+        return "flsdjflsjfls";
+    }
+
+    public static void logMethodInfo(Method m) {
+        StringBuffer sb = new StringBuffer();
+        String clsName = m.getDeclaringClass().getName();
+        sb.append(clsName + "->");
+        String methodName = m.getName();
+        sb.append(methodName);
+        Log.d("nativehook123", "call method: " + sb.toString());
+
+        /*
+        Class<?>[] params_cls = m.getParameterTypes();
+        for(Class<?> param_cls : params_cls) {
+
+        }*/
     }
 }
