@@ -55,6 +55,8 @@ public class MainActivity extends Activity {
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         initHookClasses();
+        String clsName = getSystemService(TELEPHONY_SERVICE).getClass().getName();
+        Log.d("nativehook123_java", "tel clsName: " + clsName);
         Runtime r = Runtime.getRuntime();
         ArrayList<NativeLibInfo> libInfoArray = new ArrayList<>();
         try {

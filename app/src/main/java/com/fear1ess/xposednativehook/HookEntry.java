@@ -233,18 +233,16 @@ public class HookEntry implements IXposedHookLoadPackage {
     }
 
     public static char getShortyLetter(Class<?> cls) {
-        if(cls.isPrimitive()){
-            switch(cls.getName()){
-                case "boolean": return 'Z';
-                case "byte": return 'B';
-                case "char": return 'C';
-                case "short": return 'S';
-                case "int": return 'I';
-                case "float": return 'F';
-                case "double": return 'D';
-                case "long": return 'J';
-                case "void": return 'V';
-            }
+        switch(cls.getName()){
+            case "boolean": return 'Z';
+            case "byte": return 'B';
+            case "char": return 'C';
+            case "short": return 'S';
+            case "int": return 'I';
+            case "float": return 'F';
+            case "double": return 'D';
+            case "long": return 'J';
+            case "void": return 'V';
         }
         return 'L';
     }

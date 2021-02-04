@@ -16,18 +16,6 @@
 extern "C" {
 #endif
 
-void *fake_dlopen(const char *libpath, int flags);
-
-void *fake_dlsym(void *handle, const char *name);
-
-int fake_dlclose(void *handle);
-
-void hook_jni_function(JNIEnv* env);
-void unhook_jni_function(JNIEnv* env);
-void jni_hook_init(JNIEnv* env);
-
-_Unwind_Reason_Code unwind_backtrace_callback(struct _Unwind_Context* context, void* arg);
-
 struct ctx {
     void *load_addr;
     void *dynstr;
@@ -38,6 +26,31 @@ struct ctx {
     int nsyms;
     off_t bias;
 };
+
+union JValue {
+    jboolean z;
+    jbyte b;
+    jchar c;
+    jshort s;
+    jint i;
+    jlong j;
+    jfloat f;
+    jdouble d;
+    jobject l;
+};
+
+void *fake_dlopen(const char *libpath, int flags);
+
+void *fake_dlsym(void *handle, const char *name);
+
+int fake_dlclose(void *handle);
+
+void hook_jni_function(JNIEnv* env);
+void unhook_jni_function(JNIEnv* env);
+void jni_hook_init(JNIEnv* env);
+void handleMethodCall(JNIEnv* env, jobject thiz, jmethodID method_id, va_list list, bool isStatic, char retType, JValue* j);
+
+_Unwind_Reason_Code unwind_backtrace_callback(struct _Unwind_Context* context, void* arg);
 
 #ifdef __cplusplus
 }
