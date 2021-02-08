@@ -11,6 +11,7 @@ import android.util.Log;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
@@ -19,6 +20,7 @@ import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
+import xcrash.XCrash;
 
 public class HookEntry implements IXposedHookLoadPackage {
     private final String TAG = "nativehook123_java";
@@ -56,6 +58,7 @@ public class HookEntry implements IXposedHookLoadPackage {
                             }
                         }
                         isAppHooked = true;
+                     //   XCrash.init(cxt);
                     }
                 });
     }
@@ -231,6 +234,9 @@ public class HookEntry implements IXposedHookLoadPackage {
     public static String getMethodName(Method m) {
         return m.getName();
     }
+    public static String getConstructorName(Constructor m) {
+        return m.getName();
+    }
 
     public static char getShortyLetter(Class<?> cls) {
         switch(cls.getName()){
@@ -256,6 +262,28 @@ public class HookEntry implements IXposedHookLoadPackage {
             shorty += getShortyLetter(cls);
         }
         return shorty;
+    }
+
+    public static String getConstructorShorty(Constructor m) {
+        Class<?>[] paramsCls = m.getParameterTypes();
+        String shorty = "";
+        shorty += "V";
+        for(Class<?> cls : paramsCls) {
+            shorty += getShortyLetter(cls);
+        }
+        return shorty;
+    }
+
+    public static String getConstructorSig(final Constructor method) {
+        final StringBuffer buf = new StringBuffer();
+        buf.append("(");
+        final Class<?>[] types = method.getParameterTypes();
+        for (int i = 0; i < types.length; ++i) {
+            buf.append(getDesc(types[i]));
+        }
+        buf.append(")");
+        buf.append("V");
+        return buf.toString();
     }
 
     public static String getMethodSig(final Method method) {
