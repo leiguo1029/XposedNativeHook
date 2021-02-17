@@ -30,6 +30,11 @@ set_target_properties(dobby
         PROPERTIES IMPORTED_LOCATION
         ${CMAKE_SOURCE_DIR}/../nativeLibs/${CMAKE_ANDROID_ARCH_ABI}/libdobby.a)
 
+add_library(unicornvm SHARED IMPORTED)
+set_target_properties(unicornvm
+        PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/../nativeLibs/${CMAKE_ANDROID_ARCH_ABI}/libunicornvm.so)
+
 # Searches for a specified prebuilt library and stores the path as a
 # variable. Because CMake includes system libraries in the search path by
 # default, you only need to specify the name of the public NDK library
@@ -50,6 +55,7 @@ find_library( # Sets the name of the path variable.
 target_link_libraries( # Specifies the target library.
                        haha123
                        dobby
+                       unicornvm
 
                        # Links the target library to the log library
                        # included in the NDK.

@@ -24,7 +24,7 @@ import xcrash.XCrash;
 
 public class HookEntry implements IXposedHookLoadPackage {
     private final String TAG = "nativehook123_java";
-    private final String hookPluginSoName = "haha123";
+    private final String[] hookPluginSoNames = new String[] {"unicornvm", "haha123"};
     private Context cxt;
     private Object app;
     private String pkgName;
@@ -34,7 +34,6 @@ public class HookEntry implements IXposedHookLoadPackage {
     private volatile boolean isAppHooked = false;
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
-
         processName = (String)Class.forName("android.app.ActivityThread").getDeclaredMethod("currentProcessName").invoke(null);
         if(!processName.equals("com.taou.maimai") && !(processName.equals("com.festearn.likeread"))) return;
         pkgName = lpparam.packageName;
@@ -165,10 +164,12 @@ public class HookEntry implements IXposedHookLoadPackage {
                 return false;
             }
         }
-        String destSoPath = appSoDir + "/lib" + hookPluginSoName + ".so";
-        Log.d(TAG, "destSoPath: " + destSoPath);
-        if(!load(destSoPath)) return false;
-      //  System.loadLibrary(hookPluginSoName);
+        for(String hookPluginSoName : hookPluginSoNames) {
+            String destSoPath = appSoDir + "/lib" + hookPluginSoName + ".so";
+            Log.d(TAG, "destSoPath: " + destSoPath);
+            if(!load(destSoPath)) return false;
+            //  System.loadLibrary(hookPluginSoName);
+        }
         doNativeHook(pkgName);
         return true;
     }

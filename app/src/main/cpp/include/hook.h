@@ -17,14 +17,16 @@ extern "C" {
 #endif
 
 struct ctx {
+    void *base;
     void *load_addr;
     void *dynstr;
     void *dynsym;
     void *symtab;
-    void *strtab;
+    void* strtab;
     int nsymtabs;
     int nsyms;
     off_t bias;
+    size_t mem_size;
 };
 
 

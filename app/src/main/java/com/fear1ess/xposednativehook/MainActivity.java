@@ -23,6 +23,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public class MainActivity extends Activity {
+    public static String[] libNameArr = new String[] {"haha123", "unicornvm"};
     static {
 //        HookEntry h = new HookEntry();
  //       System.loadLibrary("haha123");
@@ -86,24 +87,25 @@ public class MainActivity extends Activity {
                     }
                 }
             }
-
             Log.d("nativehook123", "onCreate: ");
-            String unzipSoPath = getFilesDir().getCanonicalPath() + "/libhaha123-arm.so";
-            String unzipSo64Path = getFilesDir().getCanonicalPath() + "/libhaha123-arm64.so";
-            File soFile = new File(unzipSoPath);
-            File so64File = new File(unzipSo64Path);
-            if(!soFile.exists()) soFile.createNewFile();
-            if(!so64File.exists()) so64File.createNewFile();
+
             ZipFile zf = new ZipFile(getApkPath(this));
             Enumeration<?> entries = zf.entries();
             while(entries.hasMoreElements()) {
                 ZipEntry entry = (ZipEntry) entries.nextElement();
                 String name = entry.getName();
                 FileOutputStream os = null;
-                if(name.contains("libhaha123.so")) {
+                String libName = isCopyLib(name);
+                if(libName != null) {
                     if(name.contains("armeabi-v7a")) {
+                        String unzipSoPath = getFilesDir().getCanonicalPath() + "/lib" + libName + "-arm.so";
+                        File soFile = new File(unzipSoPath);
+                        if(!soFile.exists()) soFile.createNewFile();
                         os = new FileOutputStream(soFile);
                     }else if(name.contains("arm64-v8a")){
+                        String unzipSo64Path = getFilesDir().getCanonicalPath() + "/lib" + libName + "-arm64.so";
+                        File so64File = new File(unzipSo64Path);
+                        if(!so64File.exists()) so64File.createNewFile();
                         os = new FileOutputStream(so64File);
                     }
                     InputStream is2 = zf.getInputStream(entry);
@@ -118,19 +120,31 @@ public class MainActivity extends Activity {
             }
             for(NativeLibInfo libInfo : libInfoArray) {
                 String srcSoPath = null;
-                if(libInfo.is64Bit) {
-                    srcSoPath = unzipSo64Path;
-                }else{
-                    srcSoPath = unzipSoPath;
+                for(String libName : libNameArr) {
+                    if(libInfo.is64Bit) {
+                        srcSoPath = getFilesDir().getCanonicalPath() + "/lib" + libName + "-arm64.so";
+                    }else{
+                        srcSoPath = getFilesDir().getCanonicalPath() + "/lib" + libName + "-arm.so";
+                    }
+                    r.exec("su -c cp " + srcSoPath + " " + libInfo.libPath + "/lib" + libName + ".so");
+                    r.exec("su -c chmod 755 " + libInfo.libPath + "/lib" + libName + ".so");
+                    Log.d("nativehook123", "success copy from " + srcSoPath + " to " + libInfo.libPath);
                 }
-                r.exec("su -c cp " + srcSoPath + " " + libInfo.libPath + "/libhaha123.so");
-                r.exec("su -c chmod 755 " + libInfo.libPath + "/libhaha123.so");
-                Log.d("nativehook123", "success copy from " + srcSoPath + " to " + libInfo.libPath);
+
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
         finish();
+    }
+
+    public String isCopyLib(String name) {
+        for(String item : libNameArr) {
+            if(name.contains(item)){
+                return item;
+            }
+        }
+        return null;
     }
 
     public String getApkPath(Context cxt) {

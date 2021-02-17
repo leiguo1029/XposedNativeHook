@@ -34,8 +34,8 @@
 #error "Arch unknown, please port me"
 #endif
 
-//extern void* libart_start;
 struct ctx {
+    void *base;
     void *load_addr;
     void *dynstr;
     void *dynsym;
@@ -44,7 +44,9 @@ struct ctx {
     int nsymtabs;
     int nsyms;
     off_t bias;
+    size_t mem_size;
 };
+
 
 int fake_dlclose(void *handle)
 {
@@ -121,15 +123,25 @@ void *fake_dlopen(const char *libpath, int flags)
     char* shstr=((void *) elf) + shstrndx->sh_offset;
 
     void* phoff = ((void *) elf) + elf->e_phoff;
-
+    size_t load_size = 0;
+    int find_bias = 0;
     for(int j = 0; j < elf->e_phnum; j++, phoff += elf->e_phentsize) {
         Elf_Phdr* ph = phoff;
         if(ph->p_type == PT_LOAD) {
-            ctx->bias = ph->p_vaddr;
-            break;
+            if(!find_bias) {
+                ctx->bias = ph->p_vaddr;
+                ctx->base = ctx->load_addr - ctx->bias;
+                find_bias = 1;
+            }
+            size_t addr = ph->p_vaddr + ph ->p_memsz;
+            if(load_size < addr) {
+                load_size = addr;
+            }
         }
     }
-    log_info("ctx->bias: %x", ctx->bias);
+    ctx->mem_size = load_size;
+
+    log_info("ctx->bias: 0x%x, ctx->mem_size: 0x%x", ctx->bias, ctx->mem_size);
 
     for(k = 0; k < elf->e_shnum; k++, shoff += elf->e_shentsize)  {
 
